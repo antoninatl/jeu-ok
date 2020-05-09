@@ -1,1 +1,1149 @@
-okkk
+## cahier des charges
+# temps de calcul : inférieur à 2s
+# précision générale : inférieure à 10m
+
+## BIBLIOTHEQUES
+
+import numpy as np
+import matplotlib.pyplot as plt
+import random as rd
+import tkinter as tk
+from PIL import Image, ImageTk
+import os as os
+import time
+
+
+## définition du répertoire courant où sont situées toutes les ressources
+os.chdir("C:\\Users\\Jerome\\Desktop\\projet info\\evolutions jeu")
+#os.chdir("C:\\Users\\nicol\\Documents\\PCSI3\\INFORMATIQUE\\PROJET\\TKINTER\\IMAGE")
+
+
+## pramètres de résolution et paramètres caractéristiques constants
+Cx=0.2 #sans unité
+m=106 #kg
+H=8600 #mètres
+g=10 #m/s^2
+p0=1.3 #kg/m^3
+S=np.pi*(0.21/2)**2 #mètres
+
+# paramètres de calculs optimaux
+N=50000
+tfinal=240  #secondes
+
+
+##paramètres initialement établis dont la valeur va changer et qui servent uniquement à ne pas faire planter le jeu au démarrage
+alpha_deg=0
+v0=0
+ximpact=0
+iimpact=0
+fenetre=False  # initialement il n'y a pas de fenêtre
+distance_bateau= 75000
+detonation=False
+brume=False
+exitt = False
+
+
+
+
+
+## fonctions de résolution et autres sans lien avec la partie affichage du jeu
+
+def conv_deg_rad(alpha):
+    """convertit un angle en debrés en un angle en radians, qui peut alors rentrer dans un sin/cos numpy"""
+    return (alpha*np.pi)/180
+
+
+def Phi(XZ,t): #X=(x,xpoint,z,zpoint)
+    xpoint2=-1/m*0.5*Cx*S*p0*np.exp(-XZ[2]/H)*np.sqrt(XZ[1]**2+XZ[3]**2)*XZ[1]
+    zpoint2=-(g+1/m*0.5*Cx*S*p0*np.exp(-XZ[2]/H)*np.sqrt(XZ[1]**2+XZ[3]**2)*XZ[3])
+    return np.array([XZ[1],xpoint2,XZ[3],zpoint2])
+
+
+def Euler2(Phi,X0,tfinal,N):
+    h=tfinal/N
+    t=np.linspace(0,tfinal,N+1)
+    X=np.zeros((N+1,4))
+    X[0,:]=X0[:]
+    for k in range(N):
+        X[k+1,:]=X[k,:]+h*Phi(X[k,:],t[k])
+    x=X[:,0]
+    z=X[:,2]
+    return np.array([t,x,z]) # attention, c'est un tableau avec 3 lignes et beaucoup de colonnes
+
+
+def recherche_plus_proche_racine(i1,i2,z):
+    """i1 et i2 sont les indices encadrant l'ordonnée nulle, z est cette fameuse liste des ordonnées.
+On retourne l'indice correspondant à l'ordonnée la moins écartée de 0"""
+    z1=abs(z[i1])
+    z2=abs(z[i2])
+    if z1<z2:
+        return i1
+    else:
+        return i2
+
+def dichoto_impact(A):
+    """A est un tableau numpy avec t en 0ème ligne, x en 1ère ligne et z en 2ème ligne.
+x et z sont l'abscisse et l'ordonnée du vol qui se correspondent.
+On cherche l'abscisse du point pour lequel z=0"""
+    x=np.copy(A[1,:])
+    z=np.copy(A[2,:])
+    igauche=1 # on ne prend pas le premier élément qui vaut déjà 0 si le canon est à-même le sol
+    idroite=len(x)-1 # dernier point
+    if z[idroite] >0: # si le dernier point précédemment calculé est tjrs avec z>0
+        return "temps de calcul de la trajectoire trop court !"
+    else:
+        while igauche+1 != idroite : # attention, on ne s'intéresse pas à la précision comme
+# on ne dispose pas d'une expression analytique mais de listes. Structurellement igauche<=imilieu<idroite
+# quand l'algorithme est "stabilisé" autour de 0, on a alors igauche +1= idroite
+            imilieu=(igauche+idroite)//2
+            milieu=z[imilieu]
+            if milieu>0: # l'annulation a lieu après l'indice imilieu
+                igauche=imilieu
+            # on considére q'il est impossible que milieu=0
+            else : # milieu<0, l'annulation a lieu avant l'indice imilieu
+                idroite=imilieu
+        iretour= recherche_plus_proche_racine(igauche,idroite,z)
+        return x[iretour],iretour
+
+
+
+
+
+
+
+##paramètres fenêtre graphique, tailles en pixel
+# la valeur que l'on peut régler est la largeur de la fenêtre pour l'adapter le mieux à son écran, la hauteur rentre sur des
+# écrans classiques. En modifiant cette valeur, les proportions sont conservées
+largeur=1200
+
+
+# faire la modif décrite plus haut PARTOUT !!!!
+
+
+
+hauteur_graph=450
+espace_bas_graph=70
+espace_gauche_graph=85
+espace_droit_graph=100
+
+decalage_courbe_tk=60
+
+largeur_canon=200
+hauteur_canon=370
+ab_canon=espace_gauche_graph+15
+ord_canon=espace_gauche_graph+30
+
+cote_roue=100
+ab_roue=espace_gauche_canon+15
+ord_roue=400
+
+cote_detonation=250
+ab_detonation=espace_gauche_canon+50
+ord_detonation=300
+
+largeur_plage=400
+hauteur_plage=espace_bas_graph+5
+ab_plage=largeur_plage/2
+ord_plage=hauteur_graph-espace_bas_graph/2
+
+largeur_mer=largeur+5
+hauteur_mer=espace_bas_graph
+ab_mer=largeur/2
+ord_mer=hauteur_graph-espace_bas_graph/2
+
+largeur_sac = 200
+hauteur_sac = 150
+ab_sac=largeur_plage/2.5
+ord_sac=hauteur_graph-espace_bas_graph/2
+
+largeur_avion1=
+hauteur_avion1=
+ab_avion1=
+ord_avion1=
+
+largeur_avion2=
+hauteur_avion2=
+ab_avion2=
+ord_avion2=
+
+largeur_avion3=
+hauteur_avion3=
+ab_avion3=
+ord_avion3=
+
+largeur_nuage_petit=70
+hauteur_nuage_petit=52
+
+largeur_nuage_gros=280
+hauteur_nuage_gros=150
+
+ab_nuage1=
+ord_nuage1=
+
+ab_nuage2=
+ord_nuage2=
+
+ab_nuage3=
+ord_nuage3=
+
+ab_nuage4=
+ord_nuage4=
+
+ab_nuage5=
+ord_nuage5=
+
+
+
+
+
+cote_soleil=100
+ab_soleil=espace_gauche_graph+70
+ord_soleil=80
+
+largeur_brume=largeur
+hauteur_brume=espace_bas_graph+20
+ab_brume=870
+ord_brume=350
+
+
+
+#espace_gauche_canon = espace_gauche_graph+15
+#espace_gauche_roue = espace_gauche_graph+30
+#espace_gauche_detonation = espace_gauche_graph+65
+
+
+
+
+
+
+## FONCTIONS TKINTER
+
+
+## fonction de modification de l'affichage
+
+def liste_courbe_tk(x,z):
+    """  retourne une unique liste avec [x0,y0 , x1,y1 , ...] apte à être affichée sous tkinter """
+    liste=[]
+    for k in range(len(x)):
+        liste+=[x[k],z[k]]
+    return liste
+
+def regAngleVitesseCanon(event=None):
+    """modifier l'angle et la vitesse initiale et choisit l'image du canon qui correspond à l'angle"""
+    global canon
+    global canonImage
+    global canonTk
+    global roue
+    global roueTk
+    global sac
+    global sacTk
+    
+    if detonation :  # faux au début car détonation=False
+        zoneGraphique.delete(detonation)  # il faut supprimer ces deux images qui vont changer. Inutile de supprimer celles qui ne changent pas
+    zoneGraphique.delete(roue) # il faudra juste les réafficher par dessus les autres dans le bon ordre
+    zoneGraphique.delete(canon)
+
+    # positions canon
+    if glissiereAngle.get()==10:
+        canonImage=Image.open("canon10.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==15:
+        canonImage=Image.open("canon15.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==20:
+        canonImage=Image.open("canon20.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==25:
+        canonImage=Image.open("canon25.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==30:
+        canonImage=Image.open("canon30.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==35:
+        canonImage=Image.open("canon35.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==40:
+        canonImage=Image.open("canon40.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==45:
+        canonImage=Image.open("canon45.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==50:
+        canonImage=Image.open("canon50.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==55:
+        canonImage=Image.open("canon55.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==60:
+        canonImage=Image.open("canon60.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==65:
+        canonImage=Image.open("canon65.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==70:
+        canonImage=Image.open("canon70.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==75:
+        canonImage=Image.open("canon75.png").resize((largeur_canon,largeur_canon))
+    elif glissiereAngle.get()==80:
+        canonImage=Image.open("canon80.png").resize((largeur_canon,largeur_canon))
+
+    canonTk=ImageTk.PhotoImage(canonImage)
+
+    canon=zoneGraphique.create_image((espace_gauche_canon, hauteur_canon),image=canonTk)
+    roue=zoneGraphique.create_image((espace_gauche_roue, hauteur_roue),image=roueTk)
+    sac=zoneGraphique.create_image((largeur_sac, hauteur_sac),image=sacTk)
+
+
+
+
+
+def ajustement_position_bateau(largeur,espace_gauche_graph,espace_droit_graph):
+    """ retourne l'abscisse du bateau coefficienté de la même manière que la trajectoire"""
+    return largeur-espace_droit_graph
+
+def ajustement_taille_bateau(largeur,espace_gauche_graph,espace_droit_graph):
+    """ retourne la longueur du bateau en taille réelle sur l'affichage tkinter """
+    largeur_courbe= largeur-(espace_gauche_graph + espace_droit_graph)
+    longueur_affichage_bateau = 2100*(largeur_courbe/distance_bateau)  # produit en croix
+    # 2100 est la longueur de toucher ok. bateau de 100m et 1000m autour du bateau de chaque côté
+    return int(longueur_affichage_bateau)
+
+def ap_brume_10 ():
+    """apparition de brume pour cacher le saut du bateau"""
+    global brume10Tk
+    global brume10
+    brume10=zoneGraphique.create_image((850,350 ),image=brume10Tk)
+
+
+def ap_brume_9():
+    global brume9
+    global brume9Tk
+    brume9=zoneGraphique.create_image((870,350 ),image=brume9Tk)
+
+def ap_brume_8():
+    global brume8
+    global brume8Tk
+    brume8=zoneGraphique.create_image((870,350 ),image=brume8Tk)
+
+def ap_brume_7():
+    global brume7
+    global brume7Tk
+    brume7=zoneGraphique.create_image((870,350 ),image=brume7Tk)
+
+def ap_brume_6():
+    global brume6
+    global brume6Tk
+    brume6=zoneGraphique.create_image((870,350 ),image=brume6Tk)
+
+def ap_brume_5():
+    global brume5
+    global brume5Tk
+    brume5=zoneGraphique.create_image((870,350 ),image=brume5Tk)
+
+def ap_brume_4():
+    global brume4
+    global brume4Tk
+    brume4=zoneGraphique.create_image((870,350 ),image=brume4Tk)
+
+def ap_brume_3():
+    global brume3
+    global brume3Tk
+    brume3=zoneGraphique.create_image((870,350 ),image=brume3Tk)
+
+def ap_brume_2():
+    global brume2
+    global brume2Tk
+    brume2=zoneGraphique.create_image((870,350 ),image=brume2Tk)
+
+def ap_brume_1():
+    global brume1
+    global brume1Tk
+    brume1=zoneGraphique.create_image((870,350 ),image=brume1Tk)
+
+def ap_brume_0():
+    global brume0
+    global brume0Tk
+    brume0=zoneGraphique.create_image((870,350 ),image=brume0Tk)
+
+def disp_brume_0():
+    global brume0
+    zoneGraphique.delete(brume0)
+
+def disp_brume_1():
+    global brume1
+    zoneGraphique.delete(brume1)
+
+def disp_brume_2():
+    global brume2
+    zoneGraphique.delete(brume2)
+
+def disp_brume_3():
+    global brume3
+    zoneGraphique.delete(brume3)
+
+def disp_brume_4():
+    global brume4
+    zoneGraphique.delete(brume4)
+
+def disp_brume_5():
+    global brume5
+    zoneGraphique.delete(brume5)
+
+def disp_brume_6():
+    global brume6
+    zoneGraphique.delete(brume6)
+
+def disp_brume_7():
+    global brume7
+    zoneGraphique.delete(brume7)
+
+def disp_brume_8():
+    global brume8
+    zoneGraphique.delete(brume8)
+
+def disp_brume_9():
+    global brume9
+    zoneGraphique.delete(brume9)
+
+def disp_brume_10():
+    global brume10
+    zoneGraphique.delete(brume10)
+
+
+
+
+
+
+temps=100  # temps en ms. Ici ça vaut 5s
+plusdt=100  # temps entre deux appels de la commande qui suit
+
+
+def brume_alea1():
+    """brume qui évolue en continu   """
+    global brume10
+    global brume10Tk
+    global brume9
+    global brume9Tk
+    global brume8
+    global brume8Tk
+    global brume7
+    global brume7Tk
+    global brume6
+    global brume6Tk
+    global brume5
+    global brume5Tk
+    global brume4
+    global brume4Tk
+    global brume3
+    global brume3Tk
+    global brume2
+    global brume2Tk
+    global brume1
+    global brume1Tk
+    global brume0
+    global brume0Tk
+    
+    global brume
+    global temps
+    global plusdt
+    
+    temps = temps + plusdt
+    
+    if brume==False :  # si il n'y a pas de brume on en fait forcément apparaître
+        ap_brume_0()
+        brume= brume0
+    
+    elif brume==brume0 :
+        alea= rd.randint(0,1)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 :  # si c'est 0 on prends une brume plud faible en intensité
+            disp_brume_0()
+            brume= False # il n'y a plus de brume
+        # toujours deux fois plus de chances de redescendre en intensité
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_1()
+            disp_brume_0()
+            brume= brume1
+
+    elif brume==brume1 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_0()
+            disp_brume_1()
+            brume= brume0
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_2()
+            disp_brume_1()
+            brume= brume2
+
+    elif brume==brume2 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_1()
+            disp_brume_2()
+            brume= brume1
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_3()
+            disp_brume_2()
+            brume= brume3
+            
+    elif brume==brume3 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_2()
+            disp_brume_3()
+            brume= brume2
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_4()
+            disp_brume_3()
+            brume= brume4
+
+    elif brume==brume4 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_3()
+            disp_brume_4()
+            brume= brume3
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_5()
+            disp_brume_4()
+            brume= brume5
+
+    else : # c'est la brume la plus forte possible
+        ap_brume_4()
+        disp_brume_5()
+        brume= brume4
+        
+    fenetre.after(temps,brume_alea1)
+
+def brume_alea2():
+    """ deuxième version : brume qui évolue à chaque fois qu'on lance le calcul"""
+    global brume10
+    global brume10Tk
+    global brume9
+    global brume9Tk
+    global brume8
+    global brume8Tk
+    global brume7
+    global brume7Tk
+    global brume6
+    global brume6Tk
+    global brume5
+    global brume5Tk
+    global brume4
+    global brume4Tk
+    global brume3
+    global brume3Tk
+    global brume2
+    global brume2Tk
+    global brume1
+    global brume1Tk
+    global brume0
+    global brume0Tk
+    
+    global brume
+    global temps
+    global plusdt
+    
+    temps = temps + plusdt
+    
+    if brume==False :  # si il n'y a pas de brume on en fait forcément apparaître
+        ap_brume_0()
+        brume= brume0
+    
+    elif brume==brume0 :
+        alea= rd.randint(0,1)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 :  # si c'est 0 on prends une brume plud faible en intensité
+            disp_brume_0()
+            brume= False # il n'y a plus de brume
+        # toujours deux fois plus de chances de redescendre en intensité
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_1()
+            disp_brume_0()
+            brume= brume1
+
+    elif brume==brume1 :
+        alea= rd.randint(0,1)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_0()
+            disp_brume_1()
+            brume= brume0
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_2()
+            disp_brume_1()
+            brume= brume2
+
+    elif brume==brume2 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_1()
+            disp_brume_2()
+            brume= brume1
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_3()
+            disp_brume_2()
+            brume= brume3
+            
+    elif brume==brume3 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_2()
+            disp_brume_3()
+            brume= brume2
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_4()
+            disp_brume_3()
+            brume= brume4
+
+    elif brume==brume4 :
+        alea= rd.randint(0,2)  # nombre aléatoire : 0 ou 1 ou 2
+        if alea==0 or alea==1:  # si c'est 0 ou 1 on prends une brume plud faible en intensité
+            ap_brume_3()
+            disp_brume_4()
+            brume= brume3
+        # si c'est 1 on reste sur la même brume, brume9 ici
+        else :     # si c'est 2 on prends une brume plus forte en intensité
+            ap_brume_5()
+            disp_brume_4()
+            brume= brume5
+
+    else : # c'est la brume la plus forte possible
+        ap_brume_4()
+        disp_brume_5()
+        brume= brume4
+
+
+
+
+def quitter():
+    if fenetre :  # si il n'y a pas de fenêtre, comme au début où fenetre=false, il n'y a rien à détruire
+        fenetre.destroy()
+        
+
+def lancementCalcul_2():
+    """"lance la résolution des équations,  change le bateau de place et affiche les résultats dans la frame correspondante"""
+    global bateau
+    global bateauTk
+    global detonation
+    global detonationTk
+    global traj_tk
+
+    global canon
+    global canonTk
+    global roue
+    global roueTk
+    global sac
+    global sacTk
+
+    alpha_deg=glissiereAngle.get()
+    v0=glissiereVitesse.get()
+
+    alpha_rad= conv_deg_rad(alpha_deg)
+    variationAlea=rd.uniform(-0.05,0.05)#varation aléatoire de 5% sur la vitesse intiale
+    v0=v0  +variationAlea*v0
+    XZ0=np.array([0,v0*np.cos(alpha_rad),0,v0*np.sin(alpha_rad)]) # tableau des conditions initiales
+
+    vol=Euler2(Phi,XZ0,tfinal,N)
+    x=vol[1,:]
+    z=vol[2,:]
+    ximpact , iimpact =dichoto_impact(vol)
+
+    # partie du code qui remplace traj_tk = trajectoire_tk(x,z,largeur,hauteur_graph,espace_bas,espace_gauche,espace_droit)
+    # qui ne fonctionnait bizarement pas, voir la fiche de bug à ce sujet
+    largeur_courbe= largeur-(espace_gauche_graph + espace_droit_graph)
+    hauteur_graph_decalage= hauteur_graph- (espace_bas_graph)
+    x2=x[:iimpact]
+    z2=z[:iimpact]
+    x2 = x2*(largeur_courbe/distance_bateau)
+    z2 = z2*(largeur_courbe/distance_bateau)
+    x3 = x2+ espace_gauche_graph
+    z3 = -z2+hauteur_graph_decalage
+    liste =liste_courbe_tk(x3,z3)
+
+    zoneGraphique.delete(traj_tk)
+    traj_tk = zoneGraphique.create_line(liste[:])
+    
+    canon=zoneGraphique.create_image((espace_gauche_canon, hauteur_canon),image=canonTk)
+    roue=zoneGraphique.create_image((espace_gauche_roue, hauteur_roue),image=roueTk)
+    sac=zoneGraphique.create_image((largeur_sac, hauteur_sac),image=sacTk)
+
+    # on réécrit la détonation par dessus
+    detonation=zoneGraphique.create_image((espace_gauche_canon+50,hauteur_detonation),image=detonationTk)
+
+    if distance_bateau-1050<=ximpact<=distance_bateau+1050 :
+        texte_res="bien joué, tu as touché l'ennemi"
+    else :
+        ecart_centre_bateau = distance_bateau-ximpact
+        if ecart_centre_bateau>0:
+            ecart_gauche= (distance_bateau-1050) -ximpact  # écart avec l'extrimité de la zone qui comptabilise un touché
+            texte_res="attention tu l'as manqué, ton tir était trop court ! L'obus est tombé à "+str(round(ecart_gauche/1000,1))+"km du bateau"
+        else :
+            ecart_droit = ximpact-(distance_bateau+1050) # écart avec l'extrimité de la zone qui comptabilise un touché en valeur absolue
+            texte_res="attention tu l'as manqué, ton tir était trop long ! L'obus est tombé à "+str(round(ecart_droit/1000,1))+"km du bateau"
+
+    for widget in resultats.winfo_children(): # solution trouvée sur internet pour nettoyer complêtement la frame
+        widget.destroy()
+
+    tk.Label(resultats, text="résultats de tir", fg="navy", font=(None, 15)).grid(pady=5)
+    tk.Label(resultats, text=texte_res, font=(None, 10)).grid()
+    tk.Button(resultats, text="Quitter", command=quitter).grid(pady=5)
+    tk.Button(resultats, text="relancer une partie", command=lancer_partie).grid(pady=5)
+
+
+def lancementCalcul():##lance la résolution des équations
+    # il y a sûrement en trop mais au moins on est sûr qu'il n'y a pas de problèmes
+    global bateau
+    global bateauTk
+    global detonation
+    global detonationTk
+    global traj_tk
+    global brume10
+    global brume10Tk
+    global brume9
+    global brume9Tk
+    global brume8
+    global brume8Tk
+    global brume7
+    global brume7Tk
+    global brume6
+    global brume6Tk
+    global brume5
+    global brume5Tk
+    global brume4
+    global brume4Tk
+    global brume3
+    global brume3Tk
+    global brume2
+    global brume2Tk
+    global brume1
+    global brume1Tk
+    global brume0
+    global brume0Tk
+    
+    global canon
+    global canonTk
+    global roue
+    global roueTk
+
+    zoneGraphique.delete(traj_tk)
+
+    # image détonation
+    detonationImage=Image.open("detonation.png").resize((largeur_detonation,largeur_detonation))
+    detonationTk=ImageTk.PhotoImage(detonationImage)
+    detonation=zoneGraphique.create_image((espace_gauche_detonation,hauteur_detonation),image=detonationTk)
+
+    lancementCalcul_2()
+    brume_alea2()
+
+
+def lancer_partie():
+    global fenetre
+    global graphique
+    global zoneGraphique
+    global informations
+    global instructions
+    global resultats
+    global glissiereAngle
+    global glissiereVitesse
+
+    global bateau
+    global bateauTk
+    global bateauImage
+    global sac
+    global sacTk
+    global sacImage
+    global canon
+    global canonTk
+    global canonImage
+    global roue
+    global roueTk
+    global roueImage
+    global detonation
+    global detonationTk
+    global detonationImage
+    global traj_tk
+    global brume10
+    global brume10Tk
+    global brume10Image
+    global brume9
+    global brume9Tk
+    global brume9Image
+    global brume8
+    global brume8Tk
+    global brume8Image
+    global brume7
+    global brume7Tk
+    global brume7Image
+    global brume6
+    global brume6Tk
+    global brume6Image
+    global brume5
+    global brume5Tk
+    global brume5Image
+    global brume4
+    global brume4Tk
+    global brume4Image
+    global brume3
+    global brume3Tk
+    global brume3Image
+    global brume2
+    global brume2Tk
+    global brume2Image
+    global brume1
+    global brume1Tk
+    global brume1Image
+    global brume0
+    global brume0Tk
+    global brume0Image
+
+    global soleilTk
+    global soleil
+    global soleilImage
+    global nuage1Tk
+    global nuage1
+    global nuage1Image
+    global nuage2Tk
+    global nuage2
+    global nuage2Image
+    global nuage3Tk
+    global nuage3
+    global nuage3Image
+    global nuage4Tk
+    global nuage4
+    global nuage4Image
+    global nuage5Tk
+    global nuage5
+    global nuage5Image
+    global nuage6Tk
+    global nuage6
+    global nuage6Image
+    global nuage7Tk
+    global nuage7
+    global nuage7Image
+
+    global avion1
+    global avion1Image
+    global avion1Tk
+    global avion2
+    global avion2Image
+    global avion2Tk
+    global avion3
+    global avion3Image
+    global avion3Tk
+    global avion4
+    global avion4Image
+    global avion4Tk
+    global avion5
+    global avion5Image
+    global avion5Tk
+    global avion6
+    global avion6Image
+    global avion6Tk
+    global avion7
+    global avion7Image
+    global avion7Tk
+    global avion8
+    global avion8Image
+    global avion8Tk
+    global avion9
+    global avion9Image
+    global avion9Tk
+    global avion10
+    global avion10Image
+    global avion10Tk
+    global avion11
+    global avion11Image
+    global avion11Tk
+    global avion12
+    global avion12Image
+    global avion12Tk
+    global avion13
+    global avion13Image
+    global avion13Tk
+    global avion14
+    global avion14Image
+    global avion14Tk
+    global avion15
+    global avion15Image
+    global avion15Tk
+    global avion16
+    global avion16Image
+    global avion16Tk
+    global avion17
+    global avion17Image
+    global avion17Tk
+    global avion18
+    global avion18Image
+    global avion18Tk
+    global avion19
+    global avion19Image
+    global avion19Tk
+
+    global mer
+    global merImage
+    global merTk
+    global plage
+    global plageImage
+    global plageTk
+    
+    global exitt
+
+    ## paramètre qui varie d'une partie à une autre : la distance du bateau
+    distance_bateau= rd.randint(40000,100000)
+
+    quitter()  # supprime l'ancienne fenêtre, si elle existe
+
+    ## importation des images (sauf exception pour le bateau) dont la taille est constante
+    fenetre=tk.Tk()
+
+    brume10Image=Image.open("brume10.png").resize((largeur,espace_bas_graph+20))
+    brume10Tk=ImageTk.PhotoImage(brume10Image)
+
+    brume9Image=Image.open("brume9.png").resize((largeur,espace_bas_graph+20))
+    brume9Tk=ImageTk.PhotoImage(brume9Image)
+
+    brume8Image=Image.open("brume8.png").resize((largeur,espace_bas_graph+20))
+    brume8Tk=ImageTk.PhotoImage(brume8Image)
+
+    brume7Image=Image.open("brume7.png").resize((largeur,espace_bas_graph+20))
+    brume7Tk=ImageTk.PhotoImage(brume7Image)
+
+    brume6Image=Image.open("brume6.png").resize((largeur,espace_bas_graph+20))
+    brume6Tk=ImageTk.PhotoImage(brume6Image)
+
+    brume5Image=Image.open("brume5.png").resize((largeur,espace_bas_graph+20))
+    brume5Tk=ImageTk.PhotoImage(brume5Image)
+
+    brume4Image=Image.open("brume4.png").resize((largeur,espace_bas_graph+20))
+    brume4Tk=ImageTk.PhotoImage(brume4Image)
+
+    brume3Image=Image.open("brume3.png").resize((largeur,espace_bas_graph+20))
+    brume3Tk=ImageTk.PhotoImage(brume3Image)
+
+    brume2Image=Image.open("brume2.png").resize((largeur,espace_bas_graph+20))
+    brume2Tk=ImageTk.PhotoImage(brume2Image)
+
+    brume1Image=Image.open("brume1.png").resize((largeur,espace_bas_graph+20))
+    brume1Tk=ImageTk.PhotoImage(brume1Image)
+
+    brume0Image=Image.open("brume0.png").resize((largeur,espace_bas_graph+20))
+    brume0Tk=ImageTk.PhotoImage(brume0Image)
+
+    soleilImage=Image.open("soleil.png").resize((100,100))
+    soleilTk=ImageTk.PhotoImage(soleilImage)
+
+    nuage1Image=Image.open("nuage2.png").resize((280,150))
+    nuage1Tk=ImageTk.PhotoImage(nuage1Image)
+
+    nuage2Image=Image.open("nuage2.png").resize((280,150))
+    nuage2Tk=ImageTk.PhotoImage(nuage2Image)
+
+    nuage3Image=Image.open("nuage3.png").resize((280,150))
+    nuage3Tk=ImageTk.PhotoImage(nuage3Image)
+
+    nuage4Image=Image.open("nuage3.png").resize((50,50))
+    nuage4Tk=ImageTk.PhotoImage(nuage4Image)
+
+    nuage5Image=Image.open("nuage3.png").resize((40,40))
+    nuage5Tk=ImageTk.PhotoImage(nuage5Image)
+
+    nuage6Image=Image.open("nuage3.png").resize((70,52))
+    nuage6Tk=ImageTk.PhotoImage(nuage6Image)
+
+    nuage7Image=Image.open("nuage2.png").resize((70,52))
+    nuage7Tk=ImageTk.PhotoImage(nuage7Image)
+
+    avion1Image=Image.open("avion1.png").resize((30,30))
+    avion1Tk=ImageTk.PhotoImage(avion1Image)
+
+    avion2Image=Image.open("avion1.png").resize((30,30))
+    avion2Tk=ImageTk.PhotoImage(avion2Image)
+
+    avion3Image=Image.open("avion1.png").resize((30,30))
+    avion3Tk=ImageTk.PhotoImage(avion3Image)
+
+    avion4Image=Image.open("avion1.png").resize((35,35))
+    avion4Tk=ImageTk.PhotoImage(avion4Image)
+
+    avion5Image=Image.open("avion1.png").resize((35,35))
+    avion5Tk=ImageTk.PhotoImage(avion5Image)
+
+    avion6Image=Image.open("avion1.png").resize((35,35))
+    avion6Tk=ImageTk.PhotoImage(avion6Image)
+
+    avion7Image=Image.open("avion1.png").resize((25,25))
+    avion7Tk=ImageTk.PhotoImage(avion7Image)
+
+    avion8Image=Image.open("avion1.png").resize((25,25))
+    avion8Tk=ImageTk.PhotoImage(avion8Image)
+
+    avion9Image=Image.open("avion1.png").resize((25,25))
+    avion9Tk=ImageTk.PhotoImage(avion9Image)
+
+    avion11Image=Image.open("avion2.png").resize((30,30))
+    avion11Tk=ImageTk.PhotoImage(avion11Image)
+
+    avion12Image=Image.open("avion2.png").resize((30,30))
+    avion12Tk=ImageTk.PhotoImage(avion12Image)
+
+    avion13Image=Image.open("avion2.png").resize((30,30))
+    avion13Tk=ImageTk.PhotoImage(avion13Image)
+
+    avion14Image=Image.open("avion2.png").resize((35,35))
+    avion14Tk=ImageTk.PhotoImage(avion14Image)
+
+    avion15Image=Image.open("avion2.png").resize((35,35))
+    avion15Tk=ImageTk.PhotoImage(avion15Image)
+
+    avion16Image=Image.open("avion2.png").resize((35,35))
+    avion16Tk=ImageTk.PhotoImage(avion16Image)
+
+    avion17Image=Image.open("avion2.png").resize((25,25))
+    avion17Tk=ImageTk.PhotoImage(avion17Image)
+
+    avion18Image=Image.open("avion2.png").resize((25,25))
+    avion18Tk=ImageTk.PhotoImage(avion18Image)
+
+    avion19Image=Image.open("avion2.png").resize((25,25))
+    avion19Tk=ImageTk.PhotoImage(avion19Image)
+
+    merImage=Image.open("mer.png").resize((largeur+5,espace_bas_graph)) # on rajoute 5 pour bien remplir tout l'espace (pas de bordures)
+    merTk=ImageTk.PhotoImage(merImage)
+
+    plageImage=Image.open("plage.png").resize((largeur_plage,espace_bas_graph+5))# on rajoute 5 pour bien remplir tout l'espace (pas de bordures)
+    plageTk=ImageTk.PhotoImage(plageImage)
+
+    canonImage=Image.open("canon10.png").resize((largeur_canon,largeur_canon))
+    canonTk=ImageTk.PhotoImage(canonImage)
+
+    roueImage=Image.open("roue.png").resize((largeur_roue,largeur_roue))
+    roueTk=ImageTk.PhotoImage(roueImage)
+
+    sacImage=Image.open("sac_sable.png").resize((200,150))
+    sacTk=ImageTk.PhotoImage(sacImage)
+
+
+    ## paramètres des différentes zones de notre fenêtre
+    fenetre.title('La grosse Bertha')
+    fenetre.iconbitmap('canon_icone.ico') # change l'icone de la fenetre
+    #fenetre.geometry("2000x800") # la fenetre garde un taille constante de 1850 pixels par 800 pixels
+
+    ## création de trois cadres dans lequel vont apparaître différentes choses
+    graphique= tk.Frame(fenetre) # la partie graphique du jeu
+    graphique.grid(row=0,columnspan=3)
+
+    informations= tk.Frame(fenetre, bg=None,borderwidth=4, relief="groove")
+    informations.grid(row=1,column=0)
+
+    instructions= tk.Frame(fenetre, bg=None,borderwidth=4, relief="groove")
+    instructions.grid(padx=5, pady=5, row=1,column=1)
+
+    resultats=  tk.Frame(fenetre, bg=None,borderwidth=4, relief="groove")
+    resultats.grid(padx=5, pady=5, row=1,column=2)
+
+    ## zone graphique
+    zoneGraphique = tk.Canvas(graphique, width=largeur, height = hauteur_graph, background='light blue')
+    zoneGraphique.grid()
+    zoneGraphique.pack()  # ça sert à quoi
+
+    ## bateau :
+    # voir les fonction plus haut qui permettent d'avoir la bonne taille du bateau et le bon positionnement surla fenêtre graphique
+    # ximpact=0 au début sert ici !
+    largeur_bateau= ajustement_taille_bateau(largeur,espace_gauche_graph,espace_droit_graph)
+    hauteur_bateau= int(largeur_bateau*0.8)
+    bateauImage=Image.open("petit_bateau_OK.png").resize((largeur_bateau,hauteur_bateau))
+    bateauTk=ImageTk.PhotoImage(bateauImage)
+    bateau=zoneGraphique.create_image((ajustement_position_bateau(largeur,espace_gauche_graph,espace_droit_graph)
+                                       ,hauteur_graph-espace_bas_graph),image=bateauTk, anchor="s")# -20 pour que le bateau 'flotte
+    # anchor = "s" permet que la position de référence soit le bas de l'image et non le centre.
+    #L'image change de hauteur donc ça permet de mettre la base de l'image toujours au même endroit
+
+    #position soleil
+    soleil=zoneGraphique.create_image((espace_gauche_graph+70,80),image=soleilTk)
+
+    #position nuages
+    nuage1=zoneGraphique.create_image((espace_gauche_graph+20,100),image=nuage1Tk)
+    nuage2=zoneGraphique.create_image((600,150),image=nuage2Tk)
+    nuage3=zoneGraphique.create_image((1000,125),image=nuage3Tk)
+    nuage4=zoneGraphique.create_image((700,150),image=nuage4Tk)
+    nuage5=zoneGraphique.create_image((1100, 120),image=nuage5Tk)
+    nuage6=zoneGraphique.create_image((380, 90),image=nuage6Tk)
+    nuage7=zoneGraphique.create_image((800, 75),image=nuage7Tk)
+
+    #position avions alliés
+    avion1=zoneGraphique.create_image((410,120),image=avion1Tk)
+    avion2=zoneGraphique.create_image((360,150),image=avion2Tk)
+    avion3=zoneGraphique.create_image((340,100),image=avion3Tk)
+    avion4=zoneGraphique.create_image((220,200),image=avion4Tk)
+    avion5=zoneGraphique.create_image((170,230),image=avion5Tk)
+    avion6=zoneGraphique.create_image((150,180),image=avion6Tk)
+    avion7=zoneGraphique.create_image((495,320),image=avion7Tk)
+    avion8=zoneGraphique.create_image((450,350),image=avion8Tk)
+    avion9=zoneGraphique.create_image((430,300),image=avion9Tk)
+
+    #position avions ennemis
+    avion11=zoneGraphique.create_image((800,150),image=avion11Tk)
+    avion12=zoneGraphique.create_image((850,120),image=avion12Tk)
+    avion13=zoneGraphique.create_image((870,170),image=avion13Tk)
+    avion14=zoneGraphique.create_image((1050,250),image=avion14Tk)
+    avion15=zoneGraphique.create_image((1100,220),image=avion15Tk)
+    avion16=zoneGraphique.create_image((1120,270),image=avion16Tk)
+    avion17=zoneGraphique.create_image((700,295),image=avion17Tk)
+    avion18=zoneGraphique.create_image((750,265),image=avion18Tk)
+    avion19=zoneGraphique.create_image((770,315),image=avion19Tk)
+
+    # trajectoire vide initialement pour ne pas faire planter le code
+    traj_tk=zoneGraphique.create_line([0,hauteur_graph,1,hauteur_graph]) # affiché sous la mer, ça ne pose pas de problème
+
+    #position mer
+    mer=zoneGraphique.create_image((largeur/2,hauteur_graph-espace_bas_graph/2 ),image=merTk)
+
+    #position plage
+    plage=zoneGraphique.create_image((),image=plageTk)
+
+    #position intiale du canon
+    canon=zoneGraphique.create_image((espace_gauche_canon,hauteur_canon),image=canonTk)
+
+    #position roue
+    roue=zoneGraphique.create_image((espace_gauche_canon+15,hauteur_roue),image=roueTk)
+
+    #position sacs de sable
+    sac=zoneGraphique.create_image((largeur_plage/2.5, hauteur_graph-espace_bas_graph/2),image=sacTk)
+    
+    
+    # brume version 1 : elle évolue en continu
+    #fenetre.after(temps,brume_alea1)
+
+
+    ## informations
+    tk.Label(informations, text="Informations de vol", fg="navy", font=(None, 15)).grid(pady=5)
+    texte_distance="Le navire ennemi est situé à "+str(round(distance_bateau/1000))+"km du canon"
+    tk.Label(informations, text=texte_distance, font=(None, 10)).grid()
+    tk.Label(informations, text="Caractéristiques de l'obus : m=106kg", bg=None, fg="black", font=(None, 10)).grid(pady=5)
+    tk.Label(informations, text="objectif : couler le navire ennemi en faisant atterir l'obus à moins d'un kilomètre de celui-ci", font=(None, 10)).grid()
+
+
+    ## instructions
+    tk.Label(instructions, text="Paramètres de tir", fg="navy", font=(None, 15)).grid(pady=5)
+
+    tk.Label(instructions, text="Réglage de l'angle intial en degrés").grid()
+
+    glissiereAngle = tk.Scale(instructions, from_=10, to=80, resolution=5, orient='horizontal')
+    glissiereAngle.grid()
+    glissiereAngle.set(10)
+
+    tk.Label(instructions, text="Réglage de la vitesse intiale en m/s").grid()
+    glissiereVitesse=tk.Scale(instructions, from_=1000, to=1600, resolution=0.5, orient='horizontal')
+    glissiereVitesse.grid()
+    glissiereVitesse.set(1000)
+
+    glissiereAngle.bind('<B1-Motion>', regAngleVitesseCanon)
+    glissiereVitesse.bind('<B1-Motion>',regAngleVitesseCanon)
+
+
+    tk.Button(instructions, text="Feu", command=lancementCalcul).grid(pady=5)
+
+
+    ## résultats
+    tk.Label(resultats, text="résultats de tir", fg="navy", font=(None, 15)).grid(pady=5)
+    tk.Button(resultats, text="Quitter", command=quitter).grid(pady=5)
+    tk.Button(resultats, text="relancer une partie", command=lancer_partie).grid(pady=5)
+
+
+    fenetre.mainloop()
+    
+lancer_partie()
